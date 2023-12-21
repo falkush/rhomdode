@@ -2140,22 +2140,7 @@ int main()
 			if (colr == 6) col = 255;
 			else col = colr + 6 * colg + 36 * colb;
 
-			if (remidx == 498500250 ||
-				remidx == 498499249 ||
-				remidx == 499501250 ||
-				remidx == 499500249 ||
-				remidx == 499500250 ||
-				remidx == 499499249 ||
-				remidx == 499499250 ||
-				remidx == 499498249 ||
-				remidx == 500501249 ||
-				remidx == 500499249 ||
-				remidx == 500499250 ||
-				remidx == 500500249 ||
-				remidx == 500500250 ||
-				remidx == 500498250 ||
-				remidx == 501499250 ||
-				remidx == 501500249) mmm = true;
+			if (sqrt((pos0 - 500) * (pos0 - 500) + (pos1 - 500) * (pos1 - 500) + (pos2 - 500) * (pos2 - 500)) < 32) mmm = true;
 
 			cudathingy(pixels, pos0, pos1, pos2, vec0, vec1, vec2, addy0, addy1, addy2, addz0, addz1, addz2,remidx,addidx,buildidx,col,nbframe);
 

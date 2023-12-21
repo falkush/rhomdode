@@ -144,7 +144,7 @@ __global__ void setplanet(bool* blocks, uint8_t* blockcol)
 
 
 
-				if (disttmp < 2)
+				if (disttmp < 32)
 				{
 					blocks[blockidx] = true;
 					blockcol[blockidx] = 255;
@@ -906,28 +906,6 @@ void cudathingy(uint8_t* pixels, double pos0, double pos1, double pos2, double v
 	{
 		remblock << <1, 1 >> > (blocks,remidx);
 		cudaDeviceSynchronize();
-		
-		if(remidx == 498500250 ||
-			remidx ==498499249||
-			remidx ==499501250 ||
-			remidx ==499500249 ||
-			remidx ==499500250 ||
-			remidx ==499499249 ||
-			remidx ==499499250 ||
-			remidx== 499498249 ||
-			remidx == 500501249 ||
-			remidx == 500499249 ||
-			remidx == 500499250 ||
-			remidx == 500500249 ||
-			remidx == 500500250 ||
-			remidx ==500498250 ||
-			remidx ==501499250 ||
-			remidx ==501500249)
-		{
-			skyr = 255;
-			skyg = 174;
-			skyb = 201;
-		}
 	}
 	if (addidx != -1)
 	{
@@ -940,6 +918,14 @@ void cudathingy(uint8_t* pixels, double pos0, double pos1, double pos2, double v
 		changecol << <1, 1 >> > (blockcol, buildidx,col);
 		cudaDeviceSynchronize();
 	}
+
+	if (sqrt((pos0 - 500) * (pos0 - 500) + (pos1 - 500) * (pos1 - 500) + (pos2 - 500) * (pos2 - 500)) < 32)
+	{
+		skyr = 255;
+		skyg = 174;
+		skyb = 201;
+	}
+
 	addKernel <<<(int)(1280 * 720 / 600), 600 >>> (buffer, vecl, blocks, norm0, norm1, norm2, point0, point1, point2, mir, pos0, pos1, pos2, vec0, vec1, vec2, addy0, addy1, addy2, addz0, addz1, addz2, nbblocks, blockcol,stars,nbframe,skyr,skyg,skyb);
 	cudaDeviceSynchronize();
 	cudaMemcpy(pixels, buffer, 4 * 1280 * 720 * sizeof(uint8_t), cudaMemcpyDeviceToHost);
