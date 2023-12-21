@@ -2,7 +2,7 @@
 Rhombic Dodecahedrons
 
 # Video
-Coming soon!
+https://www.youtube.com/watch?v=A_lr20LS9r8
 
 # Controls
 w: go foward
