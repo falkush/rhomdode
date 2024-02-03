@@ -3,7 +3,7 @@
 #include <SFML/Graphics.hpp>
 #include "windows.h" 
 
-void cudathingy(uint8_t* pixels, double pos0, double pos1, double pos2, double vec0, double vec1, double vec2, double addy0, double addy1, double addy2, double addz0, double addz1, double addz2, int remidx, int addidx, int buildidx, uint8_t col, int nbframe);
+void cudathingy(uint8_t* pixels, double pos0, double pos1, double pos2, double vec0, double vec1, double vec2, double addy0, double addy1, double addy2, double addz0, double addz1, double addz2, int remidx, int addidx, int buildidx, uint8_t col, int nbframe, double dtmpmax);
 void cudaInit(bool* blockstmp);
 void cudaExit();
 void Init3(double* norm0,double* norm1,double* norm2 ,double* point0,double* point1,double* point2,int* mir);
@@ -14,7 +14,7 @@ int main()
 
 	ShowWindow(GetConsoleWindow(), SW_HIDE);
 	//ShowWindow(GetConsoleWindow(), SW_SHOW);
-	double dist = 1;
+	double dist = 2;
 	double sqsz = 0.01 / 4;
 	double speed = 0.01;
 	int nbblocks = 1000;
@@ -60,12 +60,15 @@ int main()
 
 	bool focus = true;
 
+	bool inside = false;
+
 	sf::RenderWindow window(sf::VideoMode(1280, 720, 32), "Rhombic Dodecahedrons - Press ESC to stop", sf::Style::Titlebar | sf::Style::Close);
 	sf::Texture texture;
 	sf::Sprite sprite;
 	sf::Uint8* pixels = new sf::Uint8[1280 * 720 * 4];
 	sf::Vector2i winpos;
 
+	int* blockcol = new int[nbblocks * nbblocks * nbblocks * sizeof(int)];
 	bool* blocks = new bool[nbblocks * nbblocks * nbblocks * sizeof(bool)];
 	double* norm0 = new double[12];
 	double* norm1 = new double[12];
@@ -79,6 +82,7 @@ int main()
 	double t1, t2, tcont;
 
 	int cnx, cny, cnz;
+	int inscnx, inscny, inscnz;
 
 	double cpos0, cpos1, cpos2;
 	double tpos0, tpos1, tpos2;
@@ -94,6 +98,8 @@ int main()
 	bool addblock;
 
 	int buildidx=-1;
+
+	double ddist = 10;
 
 	int addidx;
 
@@ -492,7 +498,7 @@ int main()
 
 		if (sf::Keyboard::isKeyPressed(sf::Keyboard::P))
 		{
-			
+			inside = false;
 			pos0 = 0; pos1 = 500.1; pos2 = 500;
 
 			x[0][0] = 1; x[0][1] = 0; x[0][2] = 0;
@@ -526,26 +532,138 @@ int main()
 
 		if (sf::Keyboard::isKeyPressed(sf::Keyboard::W))
 		{
-
-			distcal = 0;
-			qa = x[0][0] * x[0][0] + x[0][1] * x[0][1] + x[0][2] * x[0][2];
-			qb = 2 * (x[0][0] * pos0 + x[0][1] * pos1 + x[0][2] * pos2) - 1000 * (x[0][0] + x[0][1] + x[0][2]);
-			qc = pos0 * pos0 + pos1 * pos1 + pos2 * pos2 - 1000 * (pos0 + pos1 + pos2 - 500);
-
-			discr = qb * qb - 4 * qa * qc;
-
-			if (discr <= 0)
+			if (inside)
 			{
 				pos0 += x[0][0] * speed;
 				pos1 += x[0][1] * speed;
 				pos2 += x[0][2] * speed;
+
+				cpos0 = pos0;
+				cpos1 = pos1;
+				cpos2 = pos2;
+
+				px = fmod(cpos0, 1.0);
+				py = fmod(cpos1, 1.0);
+				pz = fmod(cpos2, 1.0);
+
+				if (px < 0) px++;
+				if (py < 0) py++;
+				if (pz < 0) pz++;
+
+				cnx = cpos0 - px;
+				cny = cpos1 - py;
+				cnz = cpos2 - pz;
+
+
+				if ((cnx + cny + cnz) % 2 != 0)
+				{
+					if (px < py)
+					{
+						if (px < pz)
+						{
+							if (px < 1 - py)
+							{
+								if (px < 1 - pz)
+								{
+									px++;
+									cnx--;
+								}
+								else
+								{
+									pz--;
+									cnz++;
+								}
+							}
+							else
+							{
+								if (1 - py < 1 - pz)
+								{
+									py--;
+									cny++;
+								}
+								else
+								{
+									pz--;
+									cnz++;
+								}
+							}
+						}
+						else
+						{
+							if (pz < 1 - py)
+							{
+								pz++;
+								cnz--;
+							}
+							else
+							{
+								py--;
+								cny++;
+							}
+						}
+					}
+					else
+					{
+						if (py < pz)
+						{
+							if (py < 1 - px)
+							{
+								if (py < 1 - pz)
+								{
+									py++;
+									cny--;
+								}
+								else
+								{
+									pz--;
+									cnz++;
+								}
+							}
+							else
+							{
+								if (1 - px < 1 - pz)
+								{
+									px--;
+									cnx++;
+								}
+								else
+								{
+									pz--;
+									cnz++;
+								}
+							}
+						}
+						else
+						{
+							if (pz < 1 - px)
+							{
+								pz++;
+								cnz--;
+							}
+							else
+							{
+								px--;
+								cnx++;
+							}
+						}
+					}
+				}
+
+				pos0 += inscnx - cnx;
+				pos1 += inscny - cny;
+				pos2 += inscnz - cnz;
+
 			}
 			else
 			{
-				t1 = ((-1) * qb - sqrt(discr)) / (2 * qa);
-				t2 = ((-1) * qb + sqrt(discr)) / (2 * qa);
+				distcal = 0;
+				qa = x[0][0] * x[0][0] + x[0][1] * x[0][1] + x[0][2] * x[0][2];
+				qb = 2 * (x[0][0] * pos0 + x[0][1] * pos1 + x[0][2] * pos2) - 1000 * (x[0][0] + x[0][1] + x[0][2]);
+				qc = pos0 * pos0 + pos1 * pos1 + pos2 * pos2 - 1000 * (pos0 + pos1 + pos2 - 500);
 
-				if (t1 < 0 && t2 < 0)
+				discr = qb * qb - 4 * qa * qc;
+
+				if (discr <= 0)
 				{
 					pos0 += x[0][0] * speed;
 					pos1 += x[0][1] * speed;
@@ -553,203 +671,161 @@ int main()
 				}
 				else
 				{
-					if (t1 * t2 > 0)
-					{
-						if (t1 < t2) tcont = t1;
-						else tcont = t2;
+					t1 = ((-1) * qb - sqrt(discr)) / (2 * qa);
+					t2 = ((-1) * qb + sqrt(discr)) / (2 * qa);
 
-						cpos0 = pos0 + tcont * x[0][0];
-						cpos1 = pos1 + tcont * x[0][1];
-						cpos2 = pos2 + tcont * x[0][2];
-						distcal = tcont;
+					if (t1 < 0 && t2 < 0)
+					{
+						pos0 += x[0][0] * speed;
+						pos1 += x[0][1] * speed;
+						pos2 += x[0][2] * speed;
 					}
 					else
 					{
-						cpos0 = pos0;
-						cpos1 = pos1;
-						cpos2 = pos2;
-					}
-
-					px = fmod(cpos0, (double)1);
-					py = fmod(cpos1, (double)1);
-					pz = fmod(cpos2, (double)1);
-
-					if (px < 0) px++;
-					if (py < 0) py++;
-					if (pz < 0) pz++;
-
-					cnx = cpos0 - px;
-					cny = cpos1 - py;
-					cnz = cpos2 - pz;
-
-
-					if ((cnx + cny + cnz) % 2 != 0)
-					{
-						if (px < py)
+						if (t1 * t2 > 0)
 						{
-							if (px < pz)
+							if (t1 < t2) tcont = t1;
+							else tcont = t2;
+
+							cpos0 = pos0 + tcont * x[0][0];
+							cpos1 = pos1 + tcont * x[0][1];
+							cpos2 = pos2 + tcont * x[0][2];
+							distcal = tcont;
+						}
+						else
+						{
+							cpos0 = pos0;
+							cpos1 = pos1;
+							cpos2 = pos2;
+						}
+
+						px = fmod(cpos0, (double)1);
+						py = fmod(cpos1, (double)1);
+						pz = fmod(cpos2, (double)1);
+
+						if (px < 0) px++;
+						if (py < 0) py++;
+						if (pz < 0) pz++;
+
+						cnx = cpos0 - px;
+						cny = cpos1 - py;
+						cnz = cpos2 - pz;
+
+
+						if ((cnx + cny + cnz) % 2 != 0)
+						{
+							if (px < py)
 							{
-								if (px < 1 - py)
+								if (px < pz)
 								{
-									if (px < 1 - pz)
+									if (px < 1 - py)
 									{
-										px++;
-										cnx--;
+										if (px < 1 - pz)
+										{
+											px++;
+											cnx--;
+										}
+										else
+										{
+											pz--;
+											cnz++;
+										}
 									}
 									else
 									{
-										pz--;
-										cnz++;
+										if (1 - py < 1 - pz)
+										{
+											py--;
+											cny++;
+										}
+										else
+										{
+											pz--;
+											cnz++;
+										}
 									}
 								}
 								else
 								{
-									if (1 - py < 1 - pz)
+									if (pz < 1 - py)
+									{
+										pz++;
+										cnz--;
+									}
+									else
 									{
 										py--;
 										cny++;
 									}
-									else
-									{
-										pz--;
-										cnz++;
-									}
 								}
 							}
 							else
 							{
-								if (pz < 1 - py)
+								if (py < pz)
 								{
-									pz++;
-									cnz--;
-								}
-								else
-								{
-									py--;
-									cny++;
-								}
-							}
-						}
-						else
-						{
-							if (py < pz)
-							{
-								if (py < 1 - px)
-								{
-									if (py < 1 - pz)
+									if (py < 1 - px)
 									{
-										py++;
-										cny--;
+										if (py < 1 - pz)
+										{
+											py++;
+											cny--;
+										}
+										else
+										{
+											pz--;
+											cnz++;
+										}
 									}
 									else
 									{
-										pz--;
-										cnz++;
+										if (1 - px < 1 - pz)
+										{
+											px--;
+											cnx++;
+										}
+										else
+										{
+											pz--;
+											cnz++;
+										}
 									}
 								}
 								else
 								{
-									if (1 - px < 1 - pz)
+									if (pz < 1 - px)
+									{
+										pz++;
+										cnz--;
+									}
+									else
 									{
 										px--;
 										cnx++;
 									}
-									else
-									{
-										pz--;
-										cnz++;
-									}
-								}
-							}
-							else
-							{
-								if (pz < 1 - px)
-								{
-									pz++;
-									cnz--;
-								}
-								else
-								{
-									px--;
-									cnx++;
 								}
 							}
 						}
-					}
 
-					tpos0 = cpos0;
-					tpos1 = cpos1;
-					tpos2 = cpos2;
+						tpos0 = cpos0;
+						tpos1 = cpos1;
+						tpos2 = cpos2;
 
-					cpos0 = px;
-					cpos1 = py;
-					cpos2 = pz;
+						cpos0 = px;
+						cpos1 = py;
+						cpos2 = pz;
 
-					tmin = 4;
-
-
-					for (i = 0; i < 12; i++)
-					{
-						ttmp = (point0[i] - cpos0) * norm0[i] + (point1[i] - cpos1) * norm1[i] + (point2[i] - cpos2) * norm2[i];
-						ttmp /= norm0[i] * x[0][0] + norm1[i] * x[0][1] + norm2[i] * x[0][2];
-
-						if (ttmp > 0 && ttmp < tmin)
-						{
-							tmin = ttmp;
-							coll = i;
-						}
-					}
-
-					cnx -= norm0[coll];
-					cny -= norm1[coll];
-					cnz -= norm2[coll];
-
-					cpos0 += tmin * x[0][0];
-					cpos1 += tmin * x[0][1];
-					cpos2 += tmin * x[0][2];
-
-					tpos0 += tmin * x[0][0];
-					tpos1 += tmin * x[0][1];
-					tpos2 += tmin * x[0][2];
-
-					cpos0 += norm0[coll];
-					cpos1 += norm1[coll];
-					cpos2 += norm2[coll];
-
-					distcal += tmin;
-
-					cface = mir[coll];
-
-					if (cnx < 0 || cnx >= nbblocks || cny < 0 || cny >= nbblocks || cnz < 0 || cnz >= nbblocks)
-					{
-						currblock = 0;
-					}
-					else
-					{
-						if (cnx % 2 != 0) cnx2 = (cnx - 1) / 2;
-						else cnx2 = cnx / 2;
-
-						blockidx = cnx2 + nbblocks * cny + nbblocks * nbblocks * cnz;
-
-						currblock = blocks[blockidx];
-					}
-
-					while (!currblock && sqrt((tpos0 - 500) * (tpos0 - 500) + (tpos1 - 500) * (tpos1 - 500) + (tpos2 - 500) * (tpos2 - 500)) < 500)
-					{
 						tmin = 4;
 
 
 						for (i = 0; i < 12; i++)
 						{
-							if (i != cface) {
-								ttmp = (point0[i] - cpos0) * norm0[i] + (point1[i] - cpos1) * norm1[i] + (point2[i] - cpos2) * norm2[i];
-								ttmp /= norm0[i] * x[0][0] + norm1[i] * x[0][1] + norm2[i] * x[0][2];
+							ttmp = (point0[i] - cpos0) * norm0[i] + (point1[i] - cpos1) * norm1[i] + (point2[i] - cpos2) * norm2[i];
+							ttmp /= norm0[i] * x[0][0] + norm1[i] * x[0][1] + norm2[i] * x[0][2];
 
-								if (ttmp > 0 && ttmp < tmin)
-								{
-									tmin = ttmp;
-									coll = i;
-								}
+							if (ttmp > 0 && ttmp < tmin)
+							{
+								tmin = ttmp;
+								coll = i;
 							}
 						}
 
@@ -765,44 +841,109 @@ int main()
 						tpos1 += tmin * x[0][1];
 						tpos2 += tmin * x[0][2];
 
-						distcal += tmin;
-
 						cpos0 += norm0[coll];
 						cpos1 += norm1[coll];
 						cpos2 += norm2[coll];
+
+						distcal += tmin;
 
 						cface = mir[coll];
 
 						if (cnx < 0 || cnx >= nbblocks || cny < 0 || cny >= nbblocks || cnz < 0 || cnz >= nbblocks)
 						{
-							currblock = false;
+							currblock = 0;
 						}
 						else
 						{
 							if (cnx % 2 != 0) cnx2 = (cnx - 1) / 2;
 							else cnx2 = cnx / 2;
-						cnx2 = cnx / 2;
 
-						blockidx = cnx2 + nbblocks * cny + nbblocks * nbblocks * cnz;
+							blockidx = cnx2 + nbblocks * cny + nbblocks * nbblocks * cnz;
 
-						currblock = blocks[blockidx];
+							currblock = blocks[blockidx];
 						}
-					}
 
-					if (currblock)
-					{
-						if (speed < distcal)
+						while (!currblock && sqrt((tpos0 - 500) * (tpos0 - 500) + (tpos1 - 500) * (tpos1 - 500) + (tpos2 - 500) * (tpos2 - 500)) < 500)
+						{
+							tmin = 4;
+
+
+							for (i = 0; i < 12; i++)
+							{
+								if (i != cface) {
+									ttmp = (point0[i] - cpos0) * norm0[i] + (point1[i] - cpos1) * norm1[i] + (point2[i] - cpos2) * norm2[i];
+									ttmp /= norm0[i] * x[0][0] + norm1[i] * x[0][1] + norm2[i] * x[0][2];
+
+									if (ttmp > 0 && ttmp < tmin)
+									{
+										tmin = ttmp;
+										coll = i;
+									}
+								}
+							}
+
+							cnx -= norm0[coll];
+							cny -= norm1[coll];
+							cnz -= norm2[coll];
+
+							cpos0 += tmin * x[0][0];
+							cpos1 += tmin * x[0][1];
+							cpos2 += tmin * x[0][2];
+
+							tpos0 += tmin * x[0][0];
+							tpos1 += tmin * x[0][1];
+							tpos2 += tmin * x[0][2];
+
+							distcal += tmin;
+
+							cpos0 += norm0[coll];
+							cpos1 += norm1[coll];
+							cpos2 += norm2[coll];
+
+							cface = mir[coll];
+
+							if (cnx < 0 || cnx >= nbblocks || cny < 0 || cny >= nbblocks || cnz < 0 || cnz >= nbblocks)
+							{
+								currblock = false;
+							}
+							else
+							{
+								if (cnx % 2 != 0) cnx2 = (cnx - 1) / 2;
+								else cnx2 = cnx / 2;
+								cnx2 = cnx / 2;
+
+								blockidx = cnx2 + nbblocks * cny + nbblocks * nbblocks * cnz;
+
+								currblock = blocks[blockidx];
+							}
+						}
+
+						if (currblock)
+						{
+							if (speed < distcal)
+							{
+								pos0 += x[0][0] * speed;
+								pos1 += x[0][1] * speed;
+								pos2 += x[0][2] * speed;
+							}
+							else if (blockcol[blockidx] == 1)
+							{
+								inside = true;
+								inscnx = cnx;
+								inscny = cny;
+								inscnz = cnz;
+								pos0 += x[0][0] * speed;
+								pos1 += x[0][1] * speed;
+								pos2 += x[0][2] * speed;
+
+							}
+						}
+						else
 						{
 							pos0 += x[0][0] * speed;
 							pos1 += x[0][1] * speed;
 							pos2 += x[0][2] * speed;
 						}
-					}
-					else
-					{
-						pos0 += x[0][0] * speed;
-						pos1 += x[0][1] * speed;
-						pos2 += x[0][2] * speed;
 					}
 				}
 			}
@@ -818,25 +959,139 @@ int main()
 			x[0][1] = x[1][1];
 			x[0][2] = x[1][2];
 
-			distcal = 0;
-			qa = x[0][0] * x[0][0] + x[0][1] * x[0][1] + x[0][2] * x[0][2];
-			qb = 2 * (x[0][0] * pos0 + x[0][1] * pos1 + x[0][2] * pos2) - 1000 * (x[0][0] + x[0][1] + x[0][2]);
-			qc = pos0 * pos0 + pos1 * pos1 + pos2 * pos2 - 1000 * (pos0 + pos1 + pos2 - 500);
 
-			discr = qb * qb - 4 * qa * qc;
-
-			if (discr <= 0)
+			if (inside)
 			{
 				pos0 += x[0][0] * speed;
 				pos1 += x[0][1] * speed;
 				pos2 += x[0][2] * speed;
+
+				cpos0 = pos0;
+				cpos1 = pos1;
+				cpos2 = pos2;
+
+				px = fmod(cpos0, 1.0);
+				py = fmod(cpos1, 1.0);
+				pz = fmod(cpos2, 1.0);
+
+				if (px < 0) px++;
+				if (py < 0) py++;
+				if (pz < 0) pz++;
+
+				cnx = cpos0 - px;
+				cny = cpos1 - py;
+				cnz = cpos2 - pz;
+
+
+				if ((cnx + cny + cnz) % 2 != 0)
+				{
+					if (px < py)
+					{
+						if (px < pz)
+						{
+							if (px < 1 - py)
+							{
+								if (px < 1 - pz)
+								{
+									px++;
+									cnx--;
+								}
+								else
+								{
+									pz--;
+									cnz++;
+								}
+							}
+							else
+							{
+								if (1 - py < 1 - pz)
+								{
+									py--;
+									cny++;
+								}
+								else
+								{
+									pz--;
+									cnz++;
+								}
+							}
+						}
+						else
+						{
+							if (pz < 1 - py)
+							{
+								pz++;
+								cnz--;
+							}
+							else
+							{
+								py--;
+								cny++;
+							}
+						}
+					}
+					else
+					{
+						if (py < pz)
+						{
+							if (py < 1 - px)
+							{
+								if (py < 1 - pz)
+								{
+									py++;
+									cny--;
+								}
+								else
+								{
+									pz--;
+									cnz++;
+								}
+							}
+							else
+							{
+								if (1 - px < 1 - pz)
+								{
+									px--;
+									cnx++;
+								}
+								else
+								{
+									pz--;
+									cnz++;
+								}
+							}
+						}
+						else
+						{
+							if (pz < 1 - px)
+							{
+								pz++;
+								cnz--;
+							}
+							else
+							{
+								px--;
+								cnx++;
+							}
+						}
+					}
+				}
+
+				pos0 += inscnx - cnx;
+				pos1 += inscny - cny;
+				pos2 += inscnz - cnz;
+
 			}
 			else
 			{
-				t1 = ((-1) * qb - sqrt(discr)) / (2 * qa);
-				t2 = ((-1) * qb + sqrt(discr)) / (2 * qa);
+				distcal = 0;
+				qa = x[0][0] * x[0][0] + x[0][1] * x[0][1] + x[0][2] * x[0][2];
+				qb = 2 * (x[0][0] * pos0 + x[0][1] * pos1 + x[0][2] * pos2) - 1000 * (x[0][0] + x[0][1] + x[0][2]);
+				qc = pos0 * pos0 + pos1 * pos1 + pos2 * pos2 - 1000 * (pos0 + pos1 + pos2 - 500);
 
-				if (t1 < 0 && t2 < 0)
+				discr = qb * qb - 4 * qa * qc;
+
+				if (discr <= 0)
 				{
 					pos0 += x[0][0] * speed;
 					pos1 += x[0][1] * speed;
@@ -844,203 +1099,161 @@ int main()
 				}
 				else
 				{
-					if (t1 * t2 > 0)
-					{
-						if (t1 < t2) tcont = t1;
-						else tcont = t2;
+					t1 = ((-1) * qb - sqrt(discr)) / (2 * qa);
+					t2 = ((-1) * qb + sqrt(discr)) / (2 * qa);
 
-						cpos0 = pos0 + tcont * x[0][0];
-						cpos1 = pos1 + tcont * x[0][1];
-						cpos2 = pos2 + tcont * x[0][2];
-						distcal = tcont;
+					if (t1 < 0 && t2 < 0)
+					{
+						pos0 += x[0][0] * speed;
+						pos1 += x[0][1] * speed;
+						pos2 += x[0][2] * speed;
 					}
 					else
 					{
-						cpos0 = pos0;
-						cpos1 = pos1;
-						cpos2 = pos2;
-					}
-
-					px = fmod(cpos0, (double)1);
-					py = fmod(cpos1, (double)1);
-					pz = fmod(cpos2, (double)1);
-
-					if (px < 0) px++;
-					if (py < 0) py++;
-					if (pz < 0) pz++;
-
-					cnx = cpos0 - px;
-					cny = cpos1 - py;
-					cnz = cpos2 - pz;
-
-
-					if ((cnx + cny + cnz) % 2 != 0)
-					{
-						if (px < py)
+						if (t1 * t2 > 0)
 						{
-							if (px < pz)
+							if (t1 < t2) tcont = t1;
+							else tcont = t2;
+
+							cpos0 = pos0 + tcont * x[0][0];
+							cpos1 = pos1 + tcont * x[0][1];
+							cpos2 = pos2 + tcont * x[0][2];
+							distcal = tcont;
+						}
+						else
+						{
+							cpos0 = pos0;
+							cpos1 = pos1;
+							cpos2 = pos2;
+						}
+
+						px = fmod(cpos0, (double)1);
+						py = fmod(cpos1, (double)1);
+						pz = fmod(cpos2, (double)1);
+
+						if (px < 0) px++;
+						if (py < 0) py++;
+						if (pz < 0) pz++;
+
+						cnx = cpos0 - px;
+						cny = cpos1 - py;
+						cnz = cpos2 - pz;
+
+
+						if ((cnx + cny + cnz) % 2 != 0)
+						{
+							if (px < py)
 							{
-								if (px < 1 - py)
+								if (px < pz)
 								{
-									if (px < 1 - pz)
+									if (px < 1 - py)
 									{
-										px++;
-										cnx--;
+										if (px < 1 - pz)
+										{
+											px++;
+											cnx--;
+										}
+										else
+										{
+											pz--;
+											cnz++;
+										}
 									}
 									else
 									{
-										pz--;
-										cnz++;
+										if (1 - py < 1 - pz)
+										{
+											py--;
+											cny++;
+										}
+										else
+										{
+											pz--;
+											cnz++;
+										}
 									}
 								}
 								else
 								{
-									if (1 - py < 1 - pz)
+									if (pz < 1 - py)
+									{
+										pz++;
+										cnz--;
+									}
+									else
 									{
 										py--;
 										cny++;
 									}
-									else
-									{
-										pz--;
-										cnz++;
-									}
 								}
 							}
 							else
 							{
-								if (pz < 1 - py)
+								if (py < pz)
 								{
-									pz++;
-									cnz--;
-								}
-								else
-								{
-									py--;
-									cny++;
-								}
-							}
-						}
-						else
-						{
-							if (py < pz)
-							{
-								if (py < 1 - px)
-								{
-									if (py < 1 - pz)
+									if (py < 1 - px)
 									{
-										py++;
-										cny--;
+										if (py < 1 - pz)
+										{
+											py++;
+											cny--;
+										}
+										else
+										{
+											pz--;
+											cnz++;
+										}
 									}
 									else
 									{
-										pz--;
-										cnz++;
+										if (1 - px < 1 - pz)
+										{
+											px--;
+											cnx++;
+										}
+										else
+										{
+											pz--;
+											cnz++;
+										}
 									}
 								}
 								else
 								{
-									if (1 - px < 1 - pz)
+									if (pz < 1 - px)
+									{
+										pz++;
+										cnz--;
+									}
+									else
 									{
 										px--;
 										cnx++;
 									}
-									else
-									{
-										pz--;
-										cnz++;
-									}
-								}
-							}
-							else
-							{
-								if (pz < 1 - px)
-								{
-									pz++;
-									cnz--;
-								}
-								else
-								{
-									px--;
-									cnx++;
 								}
 							}
 						}
-					}
 
-					tpos0 = cpos0;
-					tpos1 = cpos1;
-					tpos2 = cpos2;
+						tpos0 = cpos0;
+						tpos1 = cpos1;
+						tpos2 = cpos2;
 
-					cpos0 = px;
-					cpos1 = py;
-					cpos2 = pz;
+						cpos0 = px;
+						cpos1 = py;
+						cpos2 = pz;
 
-					tmin = 4;
-
-
-					for (i = 0; i < 12; i++)
-					{
-						ttmp = (point0[i] - cpos0) * norm0[i] + (point1[i] - cpos1) * norm1[i] + (point2[i] - cpos2) * norm2[i];
-						ttmp /= norm0[i] * x[0][0] + norm1[i] * x[0][1] + norm2[i] * x[0][2];
-
-						if (ttmp > 0 && ttmp < tmin)
-						{
-							tmin = ttmp;
-							coll = i;
-						}
-					}
-
-					cnx -= norm0[coll];
-					cny -= norm1[coll];
-					cnz -= norm2[coll];
-
-					cpos0 += tmin * x[0][0];
-					cpos1 += tmin * x[0][1];
-					cpos2 += tmin * x[0][2];
-
-					tpos0 += tmin * x[0][0];
-					tpos1 += tmin * x[0][1];
-					tpos2 += tmin * x[0][2];
-
-					cpos0 += norm0[coll];
-					cpos1 += norm1[coll];
-					cpos2 += norm2[coll];
-
-					distcal += tmin;
-
-					cface = mir[coll];
-
-					if (cnx < 0 || cnx >= nbblocks || cny < 0 || cny >= nbblocks || cnz < 0 || cnz >= nbblocks)
-					{
-						currblock = 0;
-					}
-					else
-					{
-						if (cnx % 2 != 0) cnx2 = (cnx - 1) / 2;
-						else cnx2 = cnx / 2;
-
-						blockidx = cnx2 + nbblocks * cny + nbblocks * nbblocks * cnz;
-
-						currblock = blocks[blockidx];
-					}
-
-					while (!currblock && sqrt((tpos0 - 500) * (tpos0 - 500) + (tpos1 - 500) * (tpos1 - 500) + (tpos2 - 500) * (tpos2 - 500)) < 500)
-					{
 						tmin = 4;
 
 
 						for (i = 0; i < 12; i++)
 						{
-							if (i != cface) {
-								ttmp = (point0[i] - cpos0) * norm0[i] + (point1[i] - cpos1) * norm1[i] + (point2[i] - cpos2) * norm2[i];
-								ttmp /= norm0[i] * x[0][0] + norm1[i] * x[0][1] + norm2[i] * x[0][2];
+							ttmp = (point0[i] - cpos0) * norm0[i] + (point1[i] - cpos1) * norm1[i] + (point2[i] - cpos2) * norm2[i];
+							ttmp /= norm0[i] * x[0][0] + norm1[i] * x[0][1] + norm2[i] * x[0][2];
 
-								if (ttmp > 0 && ttmp < tmin)
-								{
-									tmin = ttmp;
-									coll = i;
-								}
+							if (ttmp > 0 && ttmp < tmin)
+							{
+								tmin = ttmp;
+								coll = i;
 							}
 						}
 
@@ -1056,48 +1269,112 @@ int main()
 						tpos1 += tmin * x[0][1];
 						tpos2 += tmin * x[0][2];
 
-						distcal += tmin;
-
 						cpos0 += norm0[coll];
 						cpos1 += norm1[coll];
 						cpos2 += norm2[coll];
+
+						distcal += tmin;
 
 						cface = mir[coll];
 
 						if (cnx < 0 || cnx >= nbblocks || cny < 0 || cny >= nbblocks || cnz < 0 || cnz >= nbblocks)
 						{
-							currblock = false;
+							currblock = 0;
 						}
 						else
 						{
 							if (cnx % 2 != 0) cnx2 = (cnx - 1) / 2;
 							else cnx2 = cnx / 2;
-						cnx2 = cnx / 2;
 
-						blockidx = cnx2 + nbblocks * cny + nbblocks * nbblocks * cnz;
+							blockidx = cnx2 + nbblocks * cny + nbblocks * nbblocks * cnz;
 
-						currblock = blocks[blockidx];
+							currblock = blocks[blockidx];
 						}
-					}
 
-					if (currblock)
-					{
-						if (speed < distcal)
+						while (!currblock && sqrt((tpos0 - 500) * (tpos0 - 500) + (tpos1 - 500) * (tpos1 - 500) + (tpos2 - 500) * (tpos2 - 500)) < 500)
+						{
+							tmin = 4;
+
+
+							for (i = 0; i < 12; i++)
+							{
+								if (i != cface) {
+									ttmp = (point0[i] - cpos0) * norm0[i] + (point1[i] - cpos1) * norm1[i] + (point2[i] - cpos2) * norm2[i];
+									ttmp /= norm0[i] * x[0][0] + norm1[i] * x[0][1] + norm2[i] * x[0][2];
+
+									if (ttmp > 0 && ttmp < tmin)
+									{
+										tmin = ttmp;
+										coll = i;
+									}
+								}
+							}
+
+							cnx -= norm0[coll];
+							cny -= norm1[coll];
+							cnz -= norm2[coll];
+
+							cpos0 += tmin * x[0][0];
+							cpos1 += tmin * x[0][1];
+							cpos2 += tmin * x[0][2];
+
+							tpos0 += tmin * x[0][0];
+							tpos1 += tmin * x[0][1];
+							tpos2 += tmin * x[0][2];
+
+							distcal += tmin;
+
+							cpos0 += norm0[coll];
+							cpos1 += norm1[coll];
+							cpos2 += norm2[coll];
+
+							cface = mir[coll];
+
+							if (cnx < 0 || cnx >= nbblocks || cny < 0 || cny >= nbblocks || cnz < 0 || cnz >= nbblocks)
+							{
+								currblock = false;
+							}
+							else
+							{
+								if (cnx % 2 != 0) cnx2 = (cnx - 1) / 2;
+								else cnx2 = cnx / 2;
+								cnx2 = cnx / 2;
+
+								blockidx = cnx2 + nbblocks * cny + nbblocks * nbblocks * cnz;
+
+								currblock = blocks[blockidx];
+							}
+						}
+
+						if (currblock)
+						{
+							if (speed < distcal)
+							{
+								pos0 += x[0][0] * speed;
+								pos1 += x[0][1] * speed;
+								pos2 += x[0][2] * speed;
+							}
+							else if (blockcol[blockidx] == 1)
+							{
+								inside = true;
+								inscnx = cnx;
+								inscny = cny;
+								inscnz = cnz;
+								pos0 += x[0][0] * speed;
+								pos1 += x[0][1] * speed;
+								pos2 += x[0][2] * speed;
+
+							}
+						}
+						else
 						{
 							pos0 += x[0][0] * speed;
 							pos1 += x[0][1] * speed;
 							pos2 += x[0][2] * speed;
 						}
 					}
-					else
-					{
-						pos0 += x[0][0] * speed;
-						pos1 += x[0][1] * speed;
-						pos2 += x[0][2] * speed;
-					}
 				}
 			}
-
 			x[0][0] = newx[0][0];
 			x[0][1] = newx[0][1];
 			x[0][2] = newx[0][2];
@@ -1114,25 +1391,138 @@ int main()
 			x[0][1] = -x[1][1];
 			x[0][2] = -x[1][2];
 
-			distcal = 0;
-			qa = x[0][0] * x[0][0] + x[0][1] * x[0][1] + x[0][2] * x[0][2];
-			qb = 2 * (x[0][0] * pos0 + x[0][1] * pos1 + x[0][2] * pos2) - 1000 * (x[0][0] + x[0][1] + x[0][2]);
-			qc = pos0 * pos0 + pos1 * pos1 + pos2 * pos2 - 1000 * (pos0 + pos1 + pos2 - 500);
-
-			discr = qb * qb - 4 * qa * qc;
-
-			if (discr <= 0)
+			if (inside)
 			{
 				pos0 += x[0][0] * speed;
 				pos1 += x[0][1] * speed;
 				pos2 += x[0][2] * speed;
+
+				cpos0 = pos0;
+				cpos1 = pos1;
+				cpos2 = pos2;
+
+				px = fmod(cpos0, 1.0);
+				py = fmod(cpos1, 1.0);
+				pz = fmod(cpos2, 1.0);
+
+				if (px < 0) px++;
+				if (py < 0) py++;
+				if (pz < 0) pz++;
+
+				cnx = cpos0 - px;
+				cny = cpos1 - py;
+				cnz = cpos2 - pz;
+
+
+				if ((cnx + cny + cnz) % 2 != 0)
+				{
+					if (px < py)
+					{
+						if (px < pz)
+						{
+							if (px < 1 - py)
+							{
+								if (px < 1 - pz)
+								{
+									px++;
+									cnx--;
+								}
+								else
+								{
+									pz--;
+									cnz++;
+								}
+							}
+							else
+							{
+								if (1 - py < 1 - pz)
+								{
+									py--;
+									cny++;
+								}
+								else
+								{
+									pz--;
+									cnz++;
+								}
+							}
+						}
+						else
+						{
+							if (pz < 1 - py)
+							{
+								pz++;
+								cnz--;
+							}
+							else
+							{
+								py--;
+								cny++;
+							}
+						}
+					}
+					else
+					{
+						if (py < pz)
+						{
+							if (py < 1 - px)
+							{
+								if (py < 1 - pz)
+								{
+									py++;
+									cny--;
+								}
+								else
+								{
+									pz--;
+									cnz++;
+								}
+							}
+							else
+							{
+								if (1 - px < 1 - pz)
+								{
+									px--;
+									cnx++;
+								}
+								else
+								{
+									pz--;
+									cnz++;
+								}
+							}
+						}
+						else
+						{
+							if (pz < 1 - px)
+							{
+								pz++;
+								cnz--;
+							}
+							else
+							{
+								px--;
+								cnx++;
+							}
+						}
+					}
+				}
+
+				pos0 += inscnx - cnx;
+				pos1 += inscny - cny;
+				pos2 += inscnz - cnz;
+
 			}
 			else
 			{
-				t1 = ((-1) * qb - sqrt(discr)) / (2 * qa);
-				t2 = ((-1) * qb + sqrt(discr)) / (2 * qa);
+				distcal = 0;
+				qa = x[0][0] * x[0][0] + x[0][1] * x[0][1] + x[0][2] * x[0][2];
+				qb = 2 * (x[0][0] * pos0 + x[0][1] * pos1 + x[0][2] * pos2) - 1000 * (x[0][0] + x[0][1] + x[0][2]);
+				qc = pos0 * pos0 + pos1 * pos1 + pos2 * pos2 - 1000 * (pos0 + pos1 + pos2 - 500);
 
-				if (t1 < 0 && t2 < 0)
+				discr = qb * qb - 4 * qa * qc;
+
+				if (discr <= 0)
 				{
 					pos0 += x[0][0] * speed;
 					pos1 += x[0][1] * speed;
@@ -1140,203 +1530,161 @@ int main()
 				}
 				else
 				{
-					if (t1 * t2 > 0)
-					{
-						if (t1 < t2) tcont = t1;
-						else tcont = t2;
+					t1 = ((-1) * qb - sqrt(discr)) / (2 * qa);
+					t2 = ((-1) * qb + sqrt(discr)) / (2 * qa);
 
-						cpos0 = pos0 + tcont * x[0][0];
-						cpos1 = pos1 + tcont * x[0][1];
-						cpos2 = pos2 + tcont * x[0][2];
-						distcal = tcont;
+					if (t1 < 0 && t2 < 0)
+					{
+						pos0 += x[0][0] * speed;
+						pos1 += x[0][1] * speed;
+						pos2 += x[0][2] * speed;
 					}
 					else
 					{
-						cpos0 = pos0;
-						cpos1 = pos1;
-						cpos2 = pos2;
-					}
-
-					px = fmod(cpos0, (double)1);
-					py = fmod(cpos1, (double)1);
-					pz = fmod(cpos2, (double)1);
-
-					if (px < 0) px++;
-					if (py < 0) py++;
-					if (pz < 0) pz++;
-
-					cnx = cpos0 - px;
-					cny = cpos1 - py;
-					cnz = cpos2 - pz;
-
-
-					if ((cnx + cny + cnz) % 2 != 0)
-					{
-						if (px < py)
+						if (t1 * t2 > 0)
 						{
-							if (px < pz)
+							if (t1 < t2) tcont = t1;
+							else tcont = t2;
+
+							cpos0 = pos0 + tcont * x[0][0];
+							cpos1 = pos1 + tcont * x[0][1];
+							cpos2 = pos2 + tcont * x[0][2];
+							distcal = tcont;
+						}
+						else
+						{
+							cpos0 = pos0;
+							cpos1 = pos1;
+							cpos2 = pos2;
+						}
+
+						px = fmod(cpos0, 1.0);
+						py = fmod(cpos1, 1.0);
+						pz = fmod(cpos2, 1.0);
+
+						if (px < 0) px++;
+						if (py < 0) py++;
+						if (pz < 0) pz++;
+
+						cnx = cpos0 - px;
+						cny = cpos1 - py;
+						cnz = cpos2 - pz;
+
+
+						if ((cnx + cny + cnz) % 2 != 0)
+						{
+							if (px < py)
 							{
-								if (px < 1 - py)
+								if (px < pz)
 								{
-									if (px < 1 - pz)
+									if (px < 1 - py)
 									{
-										px++;
-										cnx--;
+										if (px < 1 - pz)
+										{
+											px++;
+											cnx--;
+										}
+										else
+										{
+											pz--;
+											cnz++;
+										}
 									}
 									else
 									{
-										pz--;
-										cnz++;
+										if (1 - py < 1 - pz)
+										{
+											py--;
+											cny++;
+										}
+										else
+										{
+											pz--;
+											cnz++;
+										}
 									}
 								}
 								else
 								{
-									if (1 - py < 1 - pz)
+									if (pz < 1 - py)
+									{
+										pz++;
+										cnz--;
+									}
+									else
 									{
 										py--;
 										cny++;
 									}
-									else
-									{
-										pz--;
-										cnz++;
-									}
 								}
 							}
 							else
 							{
-								if (pz < 1 - py)
+								if (py < pz)
 								{
-									pz++;
-									cnz--;
-								}
-								else
-								{
-									py--;
-									cny++;
-								}
-							}
-						}
-						else
-						{
-							if (py < pz)
-							{
-								if (py < 1 - px)
-								{
-									if (py < 1 - pz)
+									if (py < 1 - px)
 									{
-										py++;
-										cny--;
+										if (py < 1 - pz)
+										{
+											py++;
+											cny--;
+										}
+										else
+										{
+											pz--;
+											cnz++;
+										}
 									}
 									else
 									{
-										pz--;
-										cnz++;
+										if (1 - px < 1 - pz)
+										{
+											px--;
+											cnx++;
+										}
+										else
+										{
+											pz--;
+											cnz++;
+										}
 									}
 								}
 								else
 								{
-									if (1 - px < 1 - pz)
+									if (pz < 1 - px)
+									{
+										pz++;
+										cnz--;
+									}
+									else
 									{
 										px--;
 										cnx++;
 									}
-									else
-									{
-										pz--;
-										cnz++;
-									}
-								}
-							}
-							else
-							{
-								if (pz < 1 - px)
-								{
-									pz++;
-									cnz--;
-								}
-								else
-								{
-									px--;
-									cnx++;
 								}
 							}
 						}
-					}
 
-					tpos0 = cpos0;
-					tpos1 = cpos1;
-					tpos2 = cpos2;
+						tpos0 = cpos0;
+						tpos1 = cpos1;
+						tpos2 = cpos2;
 
-					cpos0 = px;
-					cpos1 = py;
-					cpos2 = pz;
+						cpos0 = px;
+						cpos1 = py;
+						cpos2 = pz;
 
-					tmin = 4;
-
-
-					for (i = 0; i < 12; i++)
-					{
-						ttmp = (point0[i] - cpos0) * norm0[i] + (point1[i] - cpos1) * norm1[i] + (point2[i] - cpos2) * norm2[i];
-						ttmp /= norm0[i] * x[0][0] + norm1[i] * x[0][1] + norm2[i] * x[0][2];
-
-						if (ttmp > 0 && ttmp < tmin)
-						{
-							tmin = ttmp;
-							coll = i;
-						}
-					}
-
-					cnx -= norm0[coll];
-					cny -= norm1[coll];
-					cnz -= norm2[coll];
-
-					cpos0 += tmin * x[0][0];
-					cpos1 += tmin * x[0][1];
-					cpos2 += tmin * x[0][2];
-
-					tpos0 += tmin * x[0][0];
-					tpos1 += tmin * x[0][1];
-					tpos2 += tmin * x[0][2];
-
-					cpos0 += norm0[coll];
-					cpos1 += norm1[coll];
-					cpos2 += norm2[coll];
-
-					distcal += tmin;
-
-					cface = mir[coll];
-
-					if (cnx < 0 || cnx >= nbblocks || cny < 0 || cny >= nbblocks || cnz < 0 || cnz >= nbblocks)
-					{
-						currblock = 0;
-					}
-					else
-					{
-						if (cnx % 2 != 0) cnx2 = (cnx - 1) / 2;
-						else cnx2 = cnx / 2;
-
-						blockidx = cnx2 + nbblocks * cny + nbblocks * nbblocks * cnz;
-
-						currblock = blocks[blockidx];
-					}
-
-					while (!currblock && sqrt((tpos0 - 500) * (tpos0 - 500) + (tpos1 - 500) * (tpos1 - 500) + (tpos2 - 500) * (tpos2 - 500)) < 500)
-					{
 						tmin = 4;
 
 
 						for (i = 0; i < 12; i++)
 						{
-							if (i != cface) {
-								ttmp = (point0[i] - cpos0) * norm0[i] + (point1[i] - cpos1) * norm1[i] + (point2[i] - cpos2) * norm2[i];
-								ttmp /= norm0[i] * x[0][0] + norm1[i] * x[0][1] + norm2[i] * x[0][2];
+							ttmp = (point0[i] - cpos0) * norm0[i] + (point1[i] - cpos1) * norm1[i] + (point2[i] - cpos2) * norm2[i];
+							ttmp /= norm0[i] * x[0][0] + norm1[i] * x[0][1] + norm2[i] * x[0][2];
 
-								if (ttmp > 0 && ttmp < tmin)
-								{
-									tmin = ttmp;
-									coll = i;
-								}
+							if (ttmp > 0 && ttmp < tmin)
+							{
+								tmin = ttmp;
+								coll = i;
 							}
 						}
 
@@ -1352,44 +1700,109 @@ int main()
 						tpos1 += tmin * x[0][1];
 						tpos2 += tmin * x[0][2];
 
-						distcal += tmin;
-
 						cpos0 += norm0[coll];
 						cpos1 += norm1[coll];
 						cpos2 += norm2[coll];
+
+						distcal += tmin;
 
 						cface = mir[coll];
 
 						if (cnx < 0 || cnx >= nbblocks || cny < 0 || cny >= nbblocks || cnz < 0 || cnz >= nbblocks)
 						{
-							currblock = false;
+							currblock = 0;
 						}
 						else
 						{
 							if (cnx % 2 != 0) cnx2 = (cnx - 1) / 2;
 							else cnx2 = cnx / 2;
-						cnx2 = cnx / 2;
 
-						blockidx = cnx2 + nbblocks * cny + nbblocks * nbblocks * cnz;
+							blockidx = cnx2 + nbblocks * cny + nbblocks * nbblocks * cnz;
 
-						currblock = blocks[blockidx];
+							currblock = blocks[blockidx];
 						}
-					}
 
-					if (currblock)
-					{
-						if (speed < distcal)
+						while (!currblock && sqrt((tpos0 - 500) * (tpos0 - 500) + (tpos1 - 500) * (tpos1 - 500) + (tpos2 - 500) * (tpos2 - 500)) < 500)
+						{
+							tmin = 4;
+
+
+							for (i = 0; i < 12; i++)
+							{
+								if (i != cface) {
+									ttmp = (point0[i] - cpos0) * norm0[i] + (point1[i] - cpos1) * norm1[i] + (point2[i] - cpos2) * norm2[i];
+									ttmp /= norm0[i] * x[0][0] + norm1[i] * x[0][1] + norm2[i] * x[0][2];
+
+									if (ttmp > 0 && ttmp < tmin)
+									{
+										tmin = ttmp;
+										coll = i;
+									}
+								}
+							}
+
+							cnx -= norm0[coll];
+							cny -= norm1[coll];
+							cnz -= norm2[coll];
+
+							cpos0 += tmin * x[0][0];
+							cpos1 += tmin * x[0][1];
+							cpos2 += tmin * x[0][2];
+
+							tpos0 += tmin * x[0][0];
+							tpos1 += tmin * x[0][1];
+							tpos2 += tmin * x[0][2];
+
+							distcal += tmin;
+
+							cpos0 += norm0[coll];
+							cpos1 += norm1[coll];
+							cpos2 += norm2[coll];
+
+							cface = mir[coll];
+
+							if (cnx < 0 || cnx >= nbblocks || cny < 0 || cny >= nbblocks || cnz < 0 || cnz >= nbblocks)
+							{
+								currblock = false;
+							}
+							else
+							{
+								if (cnx % 2 != 0) cnx2 = (cnx - 1) / 2;
+								else cnx2 = cnx / 2;
+								cnx2 = cnx / 2;
+
+								blockidx = cnx2 + nbblocks * cny + nbblocks * nbblocks * cnz;
+
+								currblock = blocks[blockidx];
+							}
+						}
+
+						if (currblock)
+						{
+							if (speed < distcal)
+							{
+								pos0 += x[0][0] * speed;
+								pos1 += x[0][1] * speed;
+								pos2 += x[0][2] * speed;
+							}
+							else if (blockcol[blockidx] == 1)
+							{
+								inside = true;
+								inscnx = cnx;
+								inscny = cny;
+								inscnz = cnz;
+								pos0 += x[0][0] * speed;
+								pos1 += x[0][1] * speed;
+								pos2 += x[0][2] * speed;
+
+							}
+						}
+						else
 						{
 							pos0 += x[0][0] * speed;
 							pos1 += x[0][1] * speed;
 							pos2 += x[0][2] * speed;
 						}
-					}
-					else
-					{
-						pos0 += x[0][0] * speed;
-						pos1 += x[0][1] * speed;
-						pos2 += x[0][2] * speed;
 					}
 				}
 			}
@@ -1405,25 +1818,138 @@ int main()
 			x[0][1] *= -1;
 			x[0][2] *= -1;
 
-			distcal = 0;
-			qa = x[0][0] * x[0][0] + x[0][1] * x[0][1] + x[0][2] * x[0][2];
-			qb = 2 * (x[0][0] * pos0 + x[0][1] * pos1 + x[0][2] * pos2) - 1000 * (x[0][0] + x[0][1] + x[0][2]);
-			qc = pos0 * pos0 + pos1 * pos1 + pos2 * pos2 - 1000 * (pos0 + pos1 + pos2 - 500);
-
-			discr = qb * qb - 4 * qa * qc;
-
-			if (discr <= 0)
+			if (inside)
 			{
 				pos0 += x[0][0] * speed;
 				pos1 += x[0][1] * speed;
 				pos2 += x[0][2] * speed;
+
+				cpos0 = pos0;
+				cpos1 = pos1;
+				cpos2 = pos2;
+
+				px = fmod(cpos0, 1.0);
+				py = fmod(cpos1, 1.0);
+				pz = fmod(cpos2, 1.0);
+
+				if (px < 0) px++;
+				if (py < 0) py++;
+				if (pz < 0) pz++;
+
+				cnx = cpos0 - px;
+				cny = cpos1 - py;
+				cnz = cpos2 - pz;
+
+
+				if ((cnx + cny + cnz) % 2 != 0)
+				{
+					if (px < py)
+					{
+						if (px < pz)
+						{
+							if (px < 1 - py)
+							{
+								if (px < 1 - pz)
+								{
+									px++;
+									cnx--;
+								}
+								else
+								{
+									pz--;
+									cnz++;
+								}
+							}
+							else
+							{
+								if (1 - py < 1 - pz)
+								{
+									py--;
+									cny++;
+								}
+								else
+								{
+									pz--;
+									cnz++;
+								}
+							}
+						}
+						else
+						{
+							if (pz < 1 - py)
+							{
+								pz++;
+								cnz--;
+							}
+							else
+							{
+								py--;
+								cny++;
+							}
+						}
+					}
+					else
+					{
+						if (py < pz)
+						{
+							if (py < 1 - px)
+							{
+								if (py < 1 - pz)
+								{
+									py++;
+									cny--;
+								}
+								else
+								{
+									pz--;
+									cnz++;
+								}
+							}
+							else
+							{
+								if (1 - px < 1 - pz)
+								{
+									px--;
+									cnx++;
+								}
+								else
+								{
+									pz--;
+									cnz++;
+								}
+							}
+						}
+						else
+						{
+							if (pz < 1 - px)
+							{
+								pz++;
+								cnz--;
+							}
+							else
+							{
+								px--;
+								cnx++;
+							}
+						}
+					}
+				}
+
+				pos0 += inscnx - cnx;
+				pos1 += inscny - cny;
+				pos2 += inscnz - cnz;
+
 			}
 			else
 			{
-				t1 = ((-1) * qb - sqrt(discr)) / (2 * qa);
-				t2 = ((-1) * qb + sqrt(discr)) / (2 * qa);
+				distcal = 0;
+				qa = x[0][0] * x[0][0] + x[0][1] * x[0][1] + x[0][2] * x[0][2];
+				qb = 2 * (x[0][0] * pos0 + x[0][1] * pos1 + x[0][2] * pos2) - 1000 * (x[0][0] + x[0][1] + x[0][2]);
+				qc = pos0 * pos0 + pos1 * pos1 + pos2 * pos2 - 1000 * (pos0 + pos1 + pos2 - 500);
 
-				if (t1 < 0 && t2 < 0)
+				discr = qb * qb - 4 * qa * qc;
+
+				if (discr <= 0)
 				{
 					pos0 += x[0][0] * speed;
 					pos1 += x[0][1] * speed;
@@ -1431,203 +1957,161 @@ int main()
 				}
 				else
 				{
-					if (t1 * t2 > 0)
-					{
-						if (t1 < t2) tcont = t1;
-						else tcont = t2;
+					t1 = ((-1) * qb - sqrt(discr)) / (2 * qa);
+					t2 = ((-1) * qb + sqrt(discr)) / (2 * qa);
 
-						cpos0 = pos0 + tcont * x[0][0];
-						cpos1 = pos1 + tcont * x[0][1];
-						cpos2 = pos2 + tcont * x[0][2];
-						distcal = tcont;
+					if (t1 < 0 && t2 < 0)
+					{
+						pos0 += x[0][0] * speed;
+						pos1 += x[0][1] * speed;
+						pos2 += x[0][2] * speed;
 					}
 					else
 					{
-						cpos0 = pos0;
-						cpos1 = pos1;
-						cpos2 = pos2;
-					}
-
-					px = fmod(cpos0, (double)1);
-					py = fmod(cpos1, (double)1);
-					pz = fmod(cpos2, (double)1);
-
-					if (px < 0) px++;
-					if (py < 0) py++;
-					if (pz < 0) pz++;
-
-					cnx = cpos0 - px;
-					cny = cpos1 - py;
-					cnz = cpos2 - pz;
-
-
-					if ((cnx + cny + cnz) % 2 != 0)
-					{
-						if (px < py)
+						if (t1 * t2 > 0)
 						{
-							if (px < pz)
+							if (t1 < t2) tcont = t1;
+							else tcont = t2;
+
+							cpos0 = pos0 + tcont * x[0][0];
+							cpos1 = pos1 + tcont * x[0][1];
+							cpos2 = pos2 + tcont * x[0][2];
+							distcal = tcont;
+						}
+						else
+						{
+							cpos0 = pos0;
+							cpos1 = pos1;
+							cpos2 = pos2;
+						}
+
+						px = fmod(cpos0, (double)1);
+						py = fmod(cpos1, (double)1);
+						pz = fmod(cpos2, (double)1);
+
+						if (px < 0) px++;
+						if (py < 0) py++;
+						if (pz < 0) pz++;
+
+						cnx = cpos0 - px;
+						cny = cpos1 - py;
+						cnz = cpos2 - pz;
+
+
+						if ((cnx + cny + cnz) % 2 != 0)
+						{
+							if (px < py)
 							{
-								if (px < 1 - py)
+								if (px < pz)
 								{
-									if (px < 1 - pz)
+									if (px < 1 - py)
 									{
-										px++;
-										cnx--;
+										if (px < 1 - pz)
+										{
+											px++;
+											cnx--;
+										}
+										else
+										{
+											pz--;
+											cnz++;
+										}
 									}
 									else
 									{
-										pz--;
-										cnz++;
+										if (1 - py < 1 - pz)
+										{
+											py--;
+											cny++;
+										}
+										else
+										{
+											pz--;
+											cnz++;
+										}
 									}
 								}
 								else
 								{
-									if (1 - py < 1 - pz)
+									if (pz < 1 - py)
+									{
+										pz++;
+										cnz--;
+									}
+									else
 									{
 										py--;
 										cny++;
 									}
-									else
-									{
-										pz--;
-										cnz++;
-									}
 								}
 							}
 							else
 							{
-								if (pz < 1 - py)
+								if (py < pz)
 								{
-									pz++;
-									cnz--;
-								}
-								else
-								{
-									py--;
-									cny++;
-								}
-							}
-						}
-						else
-						{
-							if (py < pz)
-							{
-								if (py < 1 - px)
-								{
-									if (py < 1 - pz)
+									if (py < 1 - px)
 									{
-										py++;
-										cny--;
+										if (py < 1 - pz)
+										{
+											py++;
+											cny--;
+										}
+										else
+										{
+											pz--;
+											cnz++;
+										}
 									}
 									else
 									{
-										pz--;
-										cnz++;
+										if (1 - px < 1 - pz)
+										{
+											px--;
+											cnx++;
+										}
+										else
+										{
+											pz--;
+											cnz++;
+										}
 									}
 								}
 								else
 								{
-									if (1 - px < 1 - pz)
+									if (pz < 1 - px)
+									{
+										pz++;
+										cnz--;
+									}
+									else
 									{
 										px--;
 										cnx++;
 									}
-									else
-									{
-										pz--;
-										cnz++;
-									}
-								}
-							}
-							else
-							{
-								if (pz < 1 - px)
-								{
-									pz++;
-									cnz--;
-								}
-								else
-								{
-									px--;
-									cnx++;
 								}
 							}
 						}
-					}
 
-					tpos0 = cpos0;
-					tpos1 = cpos1;
-					tpos2 = cpos2;
+						tpos0 = cpos0;
+						tpos1 = cpos1;
+						tpos2 = cpos2;
 
-					cpos0 = px;
-					cpos1 = py;
-					cpos2 = pz;
+						cpos0 = px;
+						cpos1 = py;
+						cpos2 = pz;
 
-					tmin = 4;
-
-
-					for (i = 0; i < 12; i++)
-					{
-						ttmp = (point0[i] - cpos0) * norm0[i] + (point1[i] - cpos1) * norm1[i] + (point2[i] - cpos2) * norm2[i];
-						ttmp /= norm0[i] * x[0][0] + norm1[i] * x[0][1] + norm2[i] * x[0][2];
-
-						if (ttmp > 0 && ttmp < tmin)
-						{
-							tmin = ttmp;
-							coll = i;
-						}
-					}
-
-					cnx -= norm0[coll];
-					cny -= norm1[coll];
-					cnz -= norm2[coll];
-
-					cpos0 += tmin * x[0][0];
-					cpos1 += tmin * x[0][1];
-					cpos2 += tmin * x[0][2];
-
-					tpos0 += tmin * x[0][0];
-					tpos1 += tmin * x[0][1];
-					tpos2 += tmin * x[0][2];
-
-					cpos0 += norm0[coll];
-					cpos1 += norm1[coll];
-					cpos2 += norm2[coll];
-
-					distcal += tmin;
-
-					cface = mir[coll];
-
-					if (cnx < 0 || cnx >= nbblocks || cny < 0 || cny >= nbblocks || cnz < 0 || cnz >= nbblocks)
-					{
-						currblock = 0;
-					}
-					else
-					{
-						if (cnx % 2 != 0) cnx2 = (cnx - 1) / 2;
-						else cnx2 = cnx / 2;
-
-						blockidx = cnx2 + nbblocks * cny + nbblocks * nbblocks * cnz;
-
-						currblock = blocks[blockidx];
-					}
-
-					while (!currblock && sqrt((tpos0 - 500) * (tpos0 - 500) + (tpos1 - 500) * (tpos1 - 500) + (tpos2 - 500) * (tpos2 - 500)) < 500)
-					{
 						tmin = 4;
 
 
 						for (i = 0; i < 12; i++)
 						{
-							if (i != cface) {
-								ttmp = (point0[i] - cpos0) * norm0[i] + (point1[i] - cpos1) * norm1[i] + (point2[i] - cpos2) * norm2[i];
-								ttmp /= norm0[i] * x[0][0] + norm1[i] * x[0][1] + norm2[i] * x[0][2];
+							ttmp = (point0[i] - cpos0) * norm0[i] + (point1[i] - cpos1) * norm1[i] + (point2[i] - cpos2) * norm2[i];
+							ttmp /= norm0[i] * x[0][0] + norm1[i] * x[0][1] + norm2[i] * x[0][2];
 
-								if (ttmp > 0 && ttmp < tmin)
-								{
-									tmin = ttmp;
-									coll = i;
-								}
+							if (ttmp > 0 && ttmp < tmin)
+							{
+								tmin = ttmp;
+								coll = i;
 							}
 						}
 
@@ -1643,44 +2127,109 @@ int main()
 						tpos1 += tmin * x[0][1];
 						tpos2 += tmin * x[0][2];
 
-						distcal += tmin;
-
 						cpos0 += norm0[coll];
 						cpos1 += norm1[coll];
 						cpos2 += norm2[coll];
+
+						distcal += tmin;
 
 						cface = mir[coll];
 
 						if (cnx < 0 || cnx >= nbblocks || cny < 0 || cny >= nbblocks || cnz < 0 || cnz >= nbblocks)
 						{
-							currblock = false;
+							currblock = 0;
 						}
 						else
 						{
 							if (cnx % 2 != 0) cnx2 = (cnx - 1) / 2;
 							else cnx2 = cnx / 2;
-						cnx2 = cnx / 2;
 
-						blockidx = cnx2 + nbblocks * cny + nbblocks * nbblocks * cnz;
+							blockidx = cnx2 + nbblocks * cny + nbblocks * nbblocks * cnz;
 
-						currblock = blocks[blockidx];
+							currblock = blocks[blockidx];
 						}
-					}
 
-					if (currblock)
-					{
-						if (speed < distcal)
+						while (!currblock && sqrt((tpos0 - 500) * (tpos0 - 500) + (tpos1 - 500) * (tpos1 - 500) + (tpos2 - 500) * (tpos2 - 500)) < 500)
+						{
+							tmin = 4;
+
+
+							for (i = 0; i < 12; i++)
+							{
+								if (i != cface) {
+									ttmp = (point0[i] - cpos0) * norm0[i] + (point1[i] - cpos1) * norm1[i] + (point2[i] - cpos2) * norm2[i];
+									ttmp /= norm0[i] * x[0][0] + norm1[i] * x[0][1] + norm2[i] * x[0][2];
+
+									if (ttmp > 0 && ttmp < tmin)
+									{
+										tmin = ttmp;
+										coll = i;
+									}
+								}
+							}
+
+							cnx -= norm0[coll];
+							cny -= norm1[coll];
+							cnz -= norm2[coll];
+
+							cpos0 += tmin * x[0][0];
+							cpos1 += tmin * x[0][1];
+							cpos2 += tmin * x[0][2];
+
+							tpos0 += tmin * x[0][0];
+							tpos1 += tmin * x[0][1];
+							tpos2 += tmin * x[0][2];
+
+							distcal += tmin;
+
+							cpos0 += norm0[coll];
+							cpos1 += norm1[coll];
+							cpos2 += norm2[coll];
+
+							cface = mir[coll];
+
+							if (cnx < 0 || cnx >= nbblocks || cny < 0 || cny >= nbblocks || cnz < 0 || cnz >= nbblocks)
+							{
+								currblock = false;
+							}
+							else
+							{
+								if (cnx % 2 != 0) cnx2 = (cnx - 1) / 2;
+								else cnx2 = cnx / 2;
+								cnx2 = cnx / 2;
+
+								blockidx = cnx2 + nbblocks * cny + nbblocks * nbblocks * cnz;
+
+								currblock = blocks[blockidx];
+							}
+						}
+
+						if (currblock)
+						{
+							if (speed < distcal)
+							{
+								pos0 += x[0][0] * speed;
+								pos1 += x[0][1] * speed;
+								pos2 += x[0][2] * speed;
+							}
+							else if (blockcol[blockidx] == 1)
+							{
+								inside = true;
+								inscnx = cnx;
+								inscny = cny;
+								inscnz = cnz;
+								pos0 += x[0][0] * speed;
+								pos1 += x[0][1] * speed;
+								pos2 += x[0][2] * speed;
+
+							}
+						}
+						else
 						{
 							pos0 += x[0][0] * speed;
 							pos1 += x[0][1] * speed;
 							pos2 += x[0][2] * speed;
 						}
-					}
-					else
-					{
-						pos0 += x[0][0] * speed;
-						pos1 += x[0][1] * speed;
-						pos2 += x[0][2] * speed;
 					}
 				}
 			}
@@ -1697,6 +2246,16 @@ int main()
 		if (sf::Keyboard::isKeyPressed(sf::Keyboard::B))
 		{
 			buildist += 0.1;
+		}
+
+		if (sf::Keyboard::isKeyPressed(sf::Keyboard::K))
+		{
+			ddist +=0.3;
+		}
+
+		if (sf::Keyboard::isKeyPressed(sf::Keyboard::L))
+		{
+			if(ddist>0.5) ddist -= 0.3;
 		}
 
 
@@ -2140,9 +2699,15 @@ int main()
 			if (colr == 6) col = 255;
 			else col = colr + 6 * colg + 36 * colb;
 
+			if (addidx != 1)
+			{
+				if (col == 0) blockcol[addidx] = 1;
+				else blockcol[addidx] = 0;
+			}
+
 			if (sqrt((pos0 - 500) * (pos0 - 500) + (pos1 - 500) * (pos1 - 500) + (pos2 - 500) * (pos2 - 500)) < 32) mmm = true;
 
-			cudathingy(pixels, pos0, pos1, pos2, vec0, vec1, vec2, addy0, addy1, addy2, addz0, addz1, addz2,remidx,addidx,buildidx,col,nbframe);
+			cudathingy(pixels, pos0, pos1, pos2, vec0, vec1, vec2, addy0, addy1, addy2, addz0, addz1, addz2,remidx,addidx,buildidx,col,nbframe,ddist);
 
 			pixels[4 * (1280 * 360 + 640)] = 255;
 			pixels[4 * (1280 * 360 + 640)+1] = 255;

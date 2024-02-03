@@ -21,6 +21,18 @@ static double* point0 = 0;
 static double* point1 = 0;
 static double* point2 = 0;
 
+static double* polp0 = 0;
+static double* polp1 = 0;
+static double* polp2 = 0;
+
+static double* v0p0 = 0;
+static double* v0p1 = 0;
+static double* v0p2 = 0;
+
+static double* v1p0 = 0;
+static double* v1p1 = 0;
+static double* v1p2 = 0;
+
 static int* mir = 0;
 
 static uint8_t* stars = 0;
@@ -32,6 +44,17 @@ static int skyb = 217;
 __device__ double skyfunc(double a, double b, double c, double d, double e, double f, double x)
 {
 	return e*x+(a*(2.0*b*x+c)*sqrt(x*(b*x+c)+d))/(4.0*b)-(a*(c*c-4.0*b*d)*log(2.0*sqrt(b)*sqrt(x*(b*x+c)+d)+2.0*b*x+c))/(8.0*sqrt(b)*sqrt(b)*sqrt(b))+f*b*x*x*x/3.0+f*c*x*x/2+f*d*x;
+}
+
+__device__ double gauss(double x)
+{
+	double ret;
+	double sigma = 0.027;
+
+	ret = 1.0 / (sigma * sqrt(2.0 * M_PI));
+	ret *= exp((-1.0 / 2.0) * x * x * (1.0 / sigma) * (1.0 / sigma));
+
+	return ret;
 }
 
 __device__ int rnbw(int nbframe)
@@ -132,8 +155,6 @@ __global__ void setplanet(bool* blocks, uint8_t* blockcol)
 	int tmp2;
 	int tmp3;
 
-	
-
 	for (l = 0; l < 100; l++) rand = (60493 * rand + 11) % 479001599;
 
 				if ((j + k) % 2 == 0) tmp2 = 2 * i;
@@ -216,17 +237,17 @@ __global__ void setplanet(bool* blocks, uint8_t* blockcol)
 					if (j < 75)blockcol[blockidx] = 101;
 				}
 
+				//if (k < 500) blocks[blockidx] = false;
 
 }
 
 
-__global__ void addKernel(uint8_t* buffer, double* vecl, bool* blocks, double* norm0, double* norm1, double* norm2, double* point0, double* point1, double* point2, int* mir, double pos0, double pos1, double pos2, double vec0, double vec1, double vec2, double addy0, double addy1, double addy2, double addz0, double addz1, double addz2, int nbblocks, uint8_t* blockcol, uint8_t* stars, int nbframe, int skyr,int skyg, int skyb)
+__global__ void addKernel(uint8_t* buffer, double* vecl, bool* blocks, double* norm0, double* norm1, double* norm2, double* point0, double* point1, double* point2, int* mir, double pos0, double pos1, double pos2, double vec0, double vec1, double vec2, double addy0, double addy1, double addy2, double addz0, double addz1, double addz2, int nbblocks, uint8_t* blockcol, uint8_t* stars, int nbframe, int skyr, int skyg, int skyb, double* polp0, double* polp1, double* polp2, double* v0p0, double* v0p1, double* v0p2, double* v1p0, double* v1p1, double* v1p2, double dtmpmax)
 {
-	int i;
+	int i,l;
 
 	double sp1 = 40000;
 	double sp2 = 0.001;
-
 
 	double vecn0, vecn1, vecn2;
 	double cpos0, cpos1, cpos2;
@@ -247,10 +268,13 @@ __global__ void addKernel(uint8_t* buffer, double* vecl, bool* blocks, double* n
 	double tcont;
 
 	double skyfac;
+	double min;
+	double tmpd;
 
 	double kb, kc, kd;
 
 	int col, colr, colg;
+	int uv2;
 
 	int tmp = blockIdx.x * blockDim.x + threadIdx.x;
 	int tmpx = tmp % 1280;
@@ -260,9 +284,24 @@ __global__ void addKernel(uint8_t* buffer, double* vecl, bool* blocks, double* n
 	int cnx2;
 	int cface;
 
+	double prj0, prj1;
+
+	double tmpl, v0h0, v0h1, v0h2;
+	double v1h0, v1h1, v1h2;
+	double v2l;
+	double v20, v21, v22;
+	double spv0v1;
+	double v2h0, v2h1, v2h2, p0, p1;
+
 	int rnbwv;
 
+	double dtmp;
+	double sptmp;
+
 	double u, v;
+
+	double colp0, colp1, colp2;
+	double tmpnorm0, tmpnorm1, tmpnorm2;
 
 	int blockidx;
 	uint8_t currblock;
@@ -520,6 +559,140 @@ __global__ void addKernel(uint8_t* buffer, double* vecl, bool* blocks, double* n
 				}
 			}
 
+			if (cnx < 0 || cnx >= nbblocks || cny < 0 || cny >= nbblocks || cnz < 0 || cnz >= nbblocks)
+			{
+				col = 1;
+			}
+			else
+			{
+				if (cnx % 2 != 0) cnx2 = (cnx - 1) / 2;
+				else cnx2 = cnx / 2;
+
+				blockidx = cnx2 + nbblocks * cny + nbblocks * nbblocks * cnz;
+
+				col = blockcol[blockidx];
+			}
+
+			if (blocks[blockidx] && col == 0)
+			{
+				cpos0 = px;
+				cpos1 = py;
+				cpos2 = pz;
+
+				dtmp = 0;
+				cface = -1;
+				tmpd = 0;
+				while (dtmp < dtmpmax)
+				{
+					tmin = 4.0;
+
+
+					for (i = 0; i < 12; i++)
+					{
+						if (i != cface) {
+							ttmp = (point0[i] - cpos0) * norm0[i] + (point1[i] - cpos1) * norm1[i] + (point2[i] - cpos2) * norm2[i];
+							ttmp /= norm0[i] * vecn0 + norm1[i] * vecn1 + norm2[i] * vecn2;
+
+							if (ttmp > 0 && ttmp < tmin)
+							{
+								tmin = ttmp;
+								coll = i;
+							}
+						}
+					}
+
+					dtmp += tmin;
+
+					if (dtmp < dtmpmax) {
+						cpos0 += tmin * vecn0;
+						cpos1 += tmin * vecn1;
+						cpos2 += tmin * vecn2;
+
+						tmpnorm0 = norm0[coll] / sqrt(2.0);
+						tmpnorm1 = norm1[coll] / sqrt(2.0);
+						tmpnorm2 = norm2[coll] / sqrt(2.0);
+
+						sptmp = vecn0 * tmpnorm0 + vecn1 * tmpnorm1 + vecn2 * tmpnorm2;
+
+						vecn0 = vecn0 - 2 * sptmp * tmpnorm0;
+						vecn1 = vecn1 - 2 * sptmp * tmpnorm1;
+						vecn2 = vecn2 - 2 * sptmp * tmpnorm2;
+
+						cface = coll;
+
+						///////
+
+						colp0 = cpos0;
+						colp1 = cpos1;
+						colp2 = cpos2;
+
+						colp0 -= polp0[cface];
+						colp1 -= polp1[cface];
+						colp2 -= polp2[cface];
+
+						tmpl = sqrt(v0p0[cface] * v0p0[cface] + v0p1[cface] * v0p1[cface] + v0p2[cface] * v0p2[cface]);
+
+						v0h0 = v0p0[cface] / tmpl;
+						v0h1 = v0p1[cface] / tmpl;
+						v0h2 = v0p2[cface] / tmpl;
+
+						v1h0 = v1p0[cface] / tmpl;
+						v1h1 = v1p1[cface] / tmpl;
+						v1h2 = v1p2[cface] / tmpl;
+
+						spv0v1 = v0h0 * v1h0 + v0h1 * v1h1 + v0h2 * v1h2;
+
+						v20 = v1h0 - spv0v1 * v0h0;
+						v21 = v1h1 - spv0v1 * v0h1;
+						v22 = v1h2 - spv0v1 * v0h2;
+
+						v2l = sqrt(v20 * v20 + v21 * v21 + v22 * v22);
+
+						v2h0 = v20 / v2l;
+						v2h1 = v21 / v2l;
+						v2h2 = v22 / v2l;
+
+						p0 = colp0 * v0h0 + colp1 * v0h1 + colp2 * v0h2;
+						p1 = colp0 * v2h0 + colp1 * v2h1 + colp2 * v2h2;
+
+						prj0 = (p0 - (p1 * spv0v1 / v2l)) / tmpl;
+						prj1 = p1 / (v2l * tmpl);
+
+						if (prj0 < prj1) min = prj0;
+						else min = prj1;
+						if (1 - prj0 < min) min = 1 - prj0;
+						if (1 - prj1 < min) min = 1 - prj1;
+
+						tmpd += (1 - dtmp / dtmpmax) * (gauss(min) / gauss(0));
+					}
+				}
+				/////
+				if (tmpd > 1) tmpd = 1;
+
+				if (tmpd < 0.5)
+				{
+					colg = 0;
+					colr = (int)(510.0 * tmpd);
+					col = (int)(510.0 * tmpd);
+				}
+				else
+				{
+					colr = 255;
+					col = 255;
+					colg = (int)(510.0 * tmpd - 255.0);
+				}
+
+
+				buffer[4 * tmp] = colr;
+				buffer[4 * tmp + 1] = colg;
+				buffer[4 * tmp + 2] = col;
+				buffer[4 * tmp + 3] = 255;
+
+
+
+				return;
+			}
+
 			tpos0 = cpos0;
 			tpos1 = cpos1;
 			tpos2 = cpos2;
@@ -542,6 +715,8 @@ __global__ void addKernel(uint8_t* buffer, double* vecl, bool* blocks, double* n
 					coll = i;
 				}
 			}
+
+			
 
 			cnx -= norm0[coll];
 			cny -= norm1[coll];
@@ -650,6 +825,160 @@ __global__ void addKernel(uint8_t* buffer, double* vecl, bool* blocks, double* n
 					buffer[4 * tmp + 2] = col * alpha;
 					buffer[4 * tmp + 3] = 255;
 				}
+				else if (col == 0)
+				{
+					dtmp = 0;
+
+					colp0 = cpos0;
+					colp1 = cpos1;
+					colp2 = cpos2;
+
+					colp0 -= polp0[cface];
+					colp1 -= polp1[cface];
+					colp2 -= polp2[cface];
+
+					tmpl = sqrt(v0p0[cface] * v0p0[cface] + v0p1[cface] * v0p1[cface] + v0p2[cface] * v0p2[cface]);
+
+					v0h0 = v0p0[cface] / tmpl;
+					v0h1 = v0p1[cface] / tmpl;
+					v0h2 = v0p2[cface] / tmpl;
+
+					v1h0 = v1p0[cface] / tmpl;
+					v1h1 = v1p1[cface] / tmpl;
+					v1h2 = v1p2[cface] / tmpl;
+
+					spv0v1 = v0h0 * v1h0 + v0h1 * v1h1 + v0h2 * v1h2;
+
+					v20 = v1h0 - spv0v1 * v0h0;
+					v21 = v1h1 - spv0v1 * v0h1;
+					v22 = v1h2 - spv0v1 * v0h2;
+
+					v2l = sqrt(v20 * v20 + v21 * v21 + v22 * v22);
+
+					v2h0 = v20 / v2l;
+					v2h1 = v21 / v2l;
+					v2h2 = v22 / v2l;
+
+					p0 = colp0 * v0h0 + colp1 * v0h1 + colp2 * v0h2;
+					p1 = colp0 * v2h0 + colp1 * v2h1 + colp2 * v2h2;
+
+					prj0 = (p0 - (p1 * spv0v1 / v2l)) / tmpl;
+					prj1 = p1 / (v2l * tmpl);
+
+					if (prj0 < prj1) min = prj0;
+					else min = prj1;
+					if (1 - prj0 < min) min = 1 - prj0;
+					if (1 - prj1 < min) min = 1 - prj1;
+
+					tmpd = gauss(min) / gauss(0);
+
+					/////
+					while (dtmp<dtmpmax)
+					{
+						tmin = 4.0;
+
+
+						for (i = 0; i < 12; i++)
+						{
+							if (i != cface) {
+								ttmp = (point0[i] - cpos0) * norm0[i] + (point1[i] - cpos1) * norm1[i] + (point2[i] - cpos2) * norm2[i];
+								ttmp /= norm0[i] * vecn0 + norm1[i] * vecn1 + norm2[i] * vecn2;
+
+								if (ttmp > 0 && ttmp < tmin)
+								{
+									tmin = ttmp;
+									coll = i;
+								}
+							}
+						}
+
+						dtmp += tmin;
+
+						if (dtmp < dtmpmax) {
+							cpos0 += tmin * vecn0;
+							cpos1 += tmin * vecn1;
+							cpos2 += tmin * vecn2;
+
+							tmpnorm0 = norm0[coll] / sqrt(2.0);
+							tmpnorm1 = norm1[coll] / sqrt(2.0);
+							tmpnorm2 = norm2[coll] / sqrt(2.0);
+
+							sptmp = vecn0 * tmpnorm0 + vecn1 * tmpnorm1 + vecn2 * tmpnorm2;
+
+							vecn0 = vecn0 - 2 * sptmp * tmpnorm0;
+							vecn1 = vecn1 - 2 * sptmp * tmpnorm1;
+							vecn2 = vecn2 - 2 * sptmp * tmpnorm2;
+
+							cface = coll;
+
+							///////
+
+							colp0 = cpos0;
+							colp1 = cpos1;
+							colp2 = cpos2;
+
+							colp0 -= polp0[cface];
+							colp1 -= polp1[cface];
+							colp2 -= polp2[cface];
+
+							tmpl = sqrt(v0p0[cface] * v0p0[cface] + v0p1[cface] * v0p1[cface] + v0p2[cface] * v0p2[cface]);
+
+							v0h0 = v0p0[cface] / tmpl;
+							v0h1 = v0p1[cface] / tmpl;
+							v0h2 = v0p2[cface] / tmpl;
+
+							v1h0 = v1p0[cface] / tmpl;
+							v1h1 = v1p1[cface] / tmpl;
+							v1h2 = v1p2[cface] / tmpl;
+
+							spv0v1 = v0h0 * v1h0 + v0h1 * v1h1 + v0h2 * v1h2;
+
+							v20 = v1h0 - spv0v1 * v0h0;
+							v21 = v1h1 - spv0v1 * v0h1;
+							v22 = v1h2 - spv0v1 * v0h2;
+
+							v2l = sqrt(v20 * v20 + v21 * v21 + v22 * v22);
+
+							v2h0 = v20 / v2l;
+							v2h1 = v21 / v2l;
+							v2h2 = v22 / v2l;
+
+							p0 = colp0 * v0h0 + colp1 * v0h1 + colp2 * v0h2;
+							p1 = colp0 * v2h0 + colp1 * v2h1 + colp2 * v2h2;
+
+							prj0 = (p0 - (p1 * spv0v1 / v2l)) / tmpl;
+							prj1 = p1 / (v2l * tmpl);
+
+							if (prj0 < prj1) min = prj0;
+							else min = prj1;
+							if (1 - prj0 < min) min = 1 - prj0;
+							if (1 - prj1 < min) min = 1 - prj1;
+
+							tmpd += (1 - dtmp / dtmpmax) * (gauss(min) / gauss(0));
+						}
+					}
+					/////
+					if (tmpd > 1) tmpd = 1;
+
+					if (tmpd < 0.5)
+					{
+						colg = 0;
+						colr = (int)(510.0 * tmpd);
+						col = (int)(510.0 * tmpd);
+					}
+					else
+					{
+						colr = 255;
+						col = 255;
+						colg = (int)(510.0 * tmpd - 255.0);
+					}
+
+
+					buffer[4 * tmp] = colr;
+					buffer[4 * tmp + 1] = colg;
+					buffer[4 * tmp + 2] = col;
+					buffer[4 * tmp + 3] = 255;
+				}
 				else
 				{
 					colr = col % 6;
@@ -664,10 +993,73 @@ __global__ void addKernel(uint8_t* buffer, double* vecl, bool* blocks, double* n
 					colg *= (255 / 5);
 					col *= (255 / 5);
 
-					alpha = 1 - 0.042 * cface;
-					buffer[4 * tmp] = colr * alpha;
-					buffer[4 * tmp + 1] = colg * alpha;
-					buffer[4 * tmp + 2] = col * alpha;
+					//
+					colp0 = cpos0;
+					colp1 = cpos1;
+					colp2 = cpos2;
+
+					colp0 -= polp0[cface];
+					colp1 -= polp1[cface];
+					colp2 -= polp2[cface];
+
+					tmpl = sqrt(v0p0[cface] * v0p0[cface] + v0p1[cface] * v0p1[cface] + v0p2[cface] * v0p2[cface]);
+
+					v0h0 = v0p0[cface] / tmpl;
+					v0h1 = v0p1[cface] / tmpl;
+					v0h2 = v0p2[cface] / tmpl;
+
+					v1h0 = v1p0[cface] / tmpl;
+					v1h1 = v1p1[cface] / tmpl;
+					v1h2 = v1p2[cface] / tmpl;
+
+					spv0v1 = v0h0 * v1h0 + v0h1 * v1h1 + v0h2 * v1h2;
+
+					v20 = v1h0 - spv0v1 * v0h0;
+					v21 = v1h1 - spv0v1 * v0h1;
+					v22 = v1h2 - spv0v1 * v0h2;
+						
+					v2l = sqrt(v20*v20+v21*v21+v22*v22);
+
+					v2h0 = v20 / v2l;
+					v2h1 = v21 / v2l;
+					v2h2 = v22 / v2l;
+
+					p0 = colp0 * v0h0 + colp1 * v0h1 + colp2 * v0h2;
+					p1 = colp0 * v2h0 + colp1 * v2h1 + colp2 * v2h2;
+
+					prj0 = (p0 - (p1 * spv0v1 / v2l)) / tmpl;
+					prj1 = p1 / (v2l*tmpl);
+					
+
+					u = 10 * prj0;
+					v = 10 * prj1;
+					uv2 = (int)u + 10 * (int)v+cface;
+
+
+					for (l = 0; l < 10; l++) uv2 = (60493 * uv2 + 11) % 479001599;
+
+					uv2 %= 6;
+					uv2 -= 3;
+					//
+					
+					alpha = 1 - 0.05 * cface;
+					colr *= alpha;
+					colg *= alpha;
+					col *= alpha;
+
+					colr += uv2;
+					colg += uv2;
+					col += uv2;
+					if (colr < 0) colr = 0;
+					else if (colr > 255) colr = 255;
+					if (colg < 0) colg = 0;
+					else if (colg > 255) colg = 255;
+					if (col < 0) col = 0;
+					else if (col > 255) col = 255;
+
+					buffer[4 * tmp] = colr;
+					buffer[4 * tmp + 1] = colg;
+					buffer[4 * tmp + 2] = col;
 					buffer[4 * tmp + 3] = 255;
 				}
 			}
@@ -685,7 +1077,7 @@ __global__ void addKernel(uint8_t* buffer, double* vecl, bool* blocks, double* n
 
 void cudaInit(bool* blockstmp)
 {
-	double dist = 1;
+	double dist = 2;
 	double sqsz = 0.01 / 4;
 	int tmpx, tmpy;
 
@@ -708,6 +1100,18 @@ void cudaInit(bool* blockstmp)
 	double* point1tmp = new double[12];
 	double* point2tmp = new double[12];
 
+	double polp0tmp[12]{};
+	double polp1tmp[12]{};
+	double polp2tmp[12]{};
+
+	double v0p0tmp[12]{};
+	double v0p1tmp[12]{};
+	double v0p2tmp[12]{};
+
+	double v1p0tmp[12]{};
+	double v1p1tmp[12]{};
+	double v1p2tmp[12]{};
+
 	int* mirtmp = new int[12];
 
 	uint8_t* blockcoltmp = new uint8_t[nbblocks * nbblocks * nbblocks];
@@ -726,6 +1130,18 @@ void cudaInit(bool* blockstmp)
 	cudaMalloc((void**)&point0, 12 * sizeof(double));
 	cudaMalloc((void**)&point1, 12 * sizeof(double));
 	cudaMalloc((void**)&point2, 12 * sizeof(double));
+
+	cudaMalloc((void**)&polp0, 12 * sizeof(double));
+	cudaMalloc((void**)&polp1, 12 * sizeof(double));
+	cudaMalloc((void**)&polp2, 12 * sizeof(double));
+
+	cudaMalloc((void**)&v0p0, 12 * sizeof(double));
+	cudaMalloc((void**)&v0p1, 12 * sizeof(double));
+	cudaMalloc((void**)&v0p2, 12 * sizeof(double));
+
+	cudaMalloc((void**)&v1p0, 12 * sizeof(double));
+	cudaMalloc((void**)&v1p1, 12 * sizeof(double));
+	cudaMalloc((void**)&v1p2, 12 * sizeof(double));
 
 	cudaMalloc((void**)&mir, 12 * sizeof(int));
 
@@ -867,6 +1283,158 @@ void cudaInit(bool* blockstmp)
 	mirtmp[9] = 3;
 	mirtmp[10] = 0;
 	mirtmp[11] = 1;
+	
+	polp0tmp[0] = 0.5;
+	polp1tmp[0] = 0.5;
+	polp2tmp[0] = 1.5;
+
+	v0p0tmp[0] = 0.5;
+	v0p1tmp[0] = 0.5;
+	v0p2tmp[0] = -0.5;
+	
+	v1p0tmp[0] = 0.5;
+	v1p1tmp[0] = -0.5;
+	v1p2tmp[0] = -0.5;
+
+	
+	polp0tmp[1] = 0.5;
+	polp1tmp[1] = 0.5;
+	polp2tmp[1] = 1.5;
+	
+	v0p0tmp[1] = 0.5;
+	v0p1tmp[1] = 0.5;
+	v0p2tmp[1] = -0.5;
+
+	v1p0tmp[1] = -0.5;
+	v1p1tmp[1] = 0.5;
+	v1p2tmp[1] = -0.5;
+	
+	polp0tmp[2] = 0.5;
+	polp1tmp[2] = 0.5;
+	polp2tmp[2] = 1.5;
+
+	v0p0tmp[2] = -0.5;
+	v0p1tmp[2] = -0.5;
+	v0p2tmp[2] = -0.5;
+
+	v1p0tmp[2] = -0.5;
+	v1p1tmp[2] = 0.5;
+	v1p2tmp[2] = -0.5;
+	
+	polp0tmp[3] = 0.5;
+	polp1tmp[3] = 0.5;
+	polp2tmp[3] = 1.5;
+
+	v0p0tmp[3] = -0.5;
+	v0p1tmp[3] = -0.5;
+	v0p2tmp[3] = -0.5;
+
+	v1p0tmp[3] = 0.5;
+	v1p1tmp[3] = -0.5;
+	v1p2tmp[3] = -0.5;
+	
+	polp0tmp[4] = 1.5;
+	polp1tmp[4] = 0.5;
+	polp2tmp[4] = 0.5;
+
+	v0p0tmp[4] = -0.5;
+	v0p1tmp[4] = 0.5;
+	v0p2tmp[4] = 0.5;
+
+	v1p0tmp[4] = -0.5;
+	v1p1tmp[4] = 0.5;
+	v1p2tmp[4] = -0.5;
+	
+
+	polp0tmp[5] = 0.5;
+	polp1tmp[5] = 1.5;
+	polp2tmp[5] = 0.5;
+
+	v0p0tmp[5] = -0.5;
+	v0p1tmp[5] = -0.5;
+	v0p2tmp[5] = 0.5;
+
+	v1p0tmp[5] = -0.5;
+	v1p1tmp[5] = -0.5;
+	v1p2tmp[5] = -0.5;
+	
+
+	polp0tmp[6] = -0.5;
+	polp1tmp[6] = 0.5;
+	polp2tmp[6] = 0.5;
+
+	v0p0tmp[6] = 0.5;
+	v0p1tmp[6] = -0.5;
+	v0p2tmp[6] = 0.5;
+
+	v1p0tmp[6] = 0.5;
+	v1p1tmp[6] = -0.5;
+	v1p2tmp[6] = -0.5;
+	
+
+	polp0tmp[7] = 0.5;
+	polp1tmp[7] = -0.5;
+	polp2tmp[7] = 0.5;
+
+	v0p0tmp[7] = 0.5;
+	v0p1tmp[7] = 0.5;
+	v0p2tmp[7] = 0.5;
+
+	v1p0tmp[7] = 0.5;
+	v1p1tmp[7] = 0.5;
+	v1p2tmp[7] = -0.5;
+	
+
+	polp0tmp[8] = 0.5;
+	polp1tmp[8] = 0.5;
+	polp2tmp[8] = -0.5;
+
+	v0p0tmp[8] = 0.5;
+	v0p1tmp[8] = -0.5;
+	v0p2tmp[8] = 0.5;
+
+	v1p0tmp[8] = 0.5;
+	v1p1tmp[8] = 0.5;
+	v1p2tmp[8] = 0.5;
+	
+
+	polp0tmp[9] = 0.5;
+	polp1tmp[9] = 0.5;
+	polp2tmp[9] = -0.5;
+
+	v0p0tmp[9] = -0.5;
+	v0p1tmp[9] = 0.5;
+	v0p2tmp[9] = 0.5;
+
+	v1p0tmp[9] = 0.5;
+	v1p1tmp[9] =0.5;
+	v1p2tmp[9] = 0.5;
+	
+
+	polp0tmp[10] = 0.5;
+	polp1tmp[10] = 0.5;
+	polp2tmp[10] = -0.5;
+
+	v0p0tmp[10] = -0.5;
+	v0p1tmp[10] = -0.5;
+	v0p2tmp[10] = 0.5;
+
+	v1p0tmp[10] = -0.5;
+	v1p1tmp[10] = 0.5;
+	v1p2tmp[10] = 0.5;
+	
+
+	polp0tmp[11] = 0.5;
+	polp1tmp[11] = 0.5;
+	polp2tmp[11] = -0.5;
+
+	v0p0tmp[11] = -0.5;
+	v0p1tmp[11] = -0.5;
+	v0p2tmp[11] = 0.5;
+
+	v1p0tmp[11] = 0.5;
+	v1p1tmp[11] = -0.5;
+	v1p2tmp[11] = 0.5;
 
 	cudaMemcpy(vecl, vecltmp, 1280 * 720 * sizeof(double), cudaMemcpyHostToDevice);
 	
@@ -877,6 +1445,18 @@ void cudaInit(bool* blockstmp)
 	cudaMemcpy(point0, point0tmp, 12 * sizeof(double), cudaMemcpyHostToDevice);
 	cudaMemcpy(point1, point1tmp, 12 * sizeof(double), cudaMemcpyHostToDevice);
 	cudaMemcpy(point2, point2tmp, 12 * sizeof(double), cudaMemcpyHostToDevice);
+
+	cudaMemcpy(polp0, polp0tmp, 12 * sizeof(double), cudaMemcpyHostToDevice);
+	cudaMemcpy(polp1, polp1tmp, 12 * sizeof(double), cudaMemcpyHostToDevice);
+	cudaMemcpy(polp2, polp2tmp, 12 * sizeof(double), cudaMemcpyHostToDevice);
+
+	cudaMemcpy(v0p0, v0p0tmp, 12 * sizeof(double), cudaMemcpyHostToDevice);
+	cudaMemcpy(v0p1, v0p1tmp, 12 * sizeof(double), cudaMemcpyHostToDevice);
+	cudaMemcpy(v0p2, v0p2tmp, 12 * sizeof(double), cudaMemcpyHostToDevice);
+
+	cudaMemcpy(v1p0, v1p0tmp, 12 * sizeof(double), cudaMemcpyHostToDevice);
+	cudaMemcpy(v1p1, v1p1tmp, 12 * sizeof(double), cudaMemcpyHostToDevice);
+	cudaMemcpy(v1p2, v1p2tmp, 12 * sizeof(double), cudaMemcpyHostToDevice);
 
 
 	cudaMemcpy(mir, mirtmp, 12 * sizeof(int), cudaMemcpyHostToDevice);
@@ -900,7 +1480,7 @@ void cudaExit()
 	cudaDeviceReset();
 }
 
-void cudathingy(uint8_t* pixels, double pos0, double pos1, double pos2, double vec0, double vec1, double vec2, double addy0, double addy1, double addy2, double addz0, double addz1, double addz2, int remidx, int addidx, int buildidx, uint8_t col, int nbframe)
+void cudathingy(uint8_t* pixels, double pos0, double pos1, double pos2, double vec0, double vec1, double vec2, double addy0, double addy1, double addy2, double addz0, double addz1, double addz2, int remidx, int addidx, int buildidx, uint8_t col, int nbframe, double dtmpmax)
 {
 	if (remidx != -1)
 	{
@@ -926,7 +1506,7 @@ void cudathingy(uint8_t* pixels, double pos0, double pos1, double pos2, double v
 		skyb = 201;
 	}
 
-	addKernel <<<(int)(1280 * 720 / 600), 600 >>> (buffer, vecl, blocks, norm0, norm1, norm2, point0, point1, point2, mir, pos0, pos1, pos2, vec0, vec1, vec2, addy0, addy1, addy2, addz0, addz1, addz2, nbblocks, blockcol,stars,nbframe,skyr,skyg,skyb);
+	addKernel <<<(int)(1280 * 720 / 600), 600 >>> (buffer, vecl, blocks, norm0, norm1, norm2, point0, point1, point2, mir, pos0, pos1, pos2, vec0, vec1, vec2, addy0, addy1, addy2, addz0, addz1, addz2, nbblocks, blockcol,stars,nbframe,skyr,skyg,skyb,polp0,polp1,polp2,v0p0,v0p1,v0p2,v1p0,v1p1,v1p2,dtmpmax);
 	cudaDeviceSynchronize();
 	cudaMemcpy(pixels, buffer, 4 * 1280 * 720 * sizeof(uint8_t), cudaMemcpyDeviceToHost);
 }
