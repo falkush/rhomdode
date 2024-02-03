@@ -3,6 +3,7 @@ Rhombic Dodecahedrons
 
 # Video
 https://www.youtube.com/watch?v=A_lr20LS9r8
+https://www.youtube.com/shorts/R26tPVjA9qA
 
 # Controls
 w: go foward
@@ -26,6 +27,10 @@ b: increase block distance
 n: toggle construction/destruction mode
 
 m: toggle fast/slow speed
+
+k: increase see distance (for depthless dodecahedron)
+
+l: decrease see distance (for depthless dodecahedron)
 
 p: reset
 
