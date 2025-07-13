@@ -35,6 +35,10 @@ l: decrease see distance (for depthless dodecahedron)
 
 p: reset
 
+# Drivers compatibility
+
+Nvidia has updated their drivers and it introduced a crash on my ti 1080. Use driver version 561.09.
+
 # Requirements
 - Windows
 - Nvidia GPU
